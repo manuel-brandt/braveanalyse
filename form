@@ -1,0 +1,409 @@
+<!--
+  Reifegrad-Check™ BASIS – Drop‑In Widget (Vanilla HTML/CSS/JS)
+  Usage: Paste this whole block into your site (e.g., WordPress/Elementor HTML widget or any page).
+  Notes:
+  - No assessment answers are sent anywhere. All scoring runs in the browser.
+  - Only the optional feedback (NPS + free text) is posted anonymously to FEEDBACK_ENDPOINT.
+  - Replace FEEDBACK_ENDPOINT with your Make.com webhook or your own serverless endpoint.
+  - Adjust brand colours via CSS variables under :root.
+-->
+<div id="rcb-root"></div>
+<style>
+  :root {
+    /* === Brand/CI colours (adjust to bravework CI) === */
+    --rcb-primary: #014D4E;  /* headings, buttons */
+    --rcb-accent: #00A8A8;   /* highlights, focus */
+    --rcb-bg: #F6F8F9;       /* soft background */
+    --rcb-text: #1A1F36;     /* default text */
+    --rcb-muted: #6B7280;    /* secondary text */
+
+    /* Traffic-light colours */
+    --rcb-red: #E53E3E;
+    --rcb-yellow: #D69E2E;
+    --rcb-green: #2F855A;
+
+    /* UI tokens */
+    --rcb-radius: 14px;
+    --rcb-shadow: 0 8px 24px rgba(16, 24, 40, 0.08);
+  }
+
+  .rcb-container {
+    box-sizing: border-box;
+    max-width: 980px;
+    margin: 40px auto;
+    padding: 24px;
+    background: #fff;
+    border-radius: var(--rcb-radius);
+    box-shadow: var(--rcb-shadow);
+    color: var(--rcb-text);
+    font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+  }
+  .rcb-kicker { color: var(--rcb-accent); letter-spacing: .06em; text-transform: uppercase; font-weight: 700; font-size: 12px; }
+  .rcb-h1 { margin: 6px 0 8px; font-size: 28px; line-height: 1.25; color: var(--rcb-primary); font-weight: 800; }
+  .rcb-lead { color: var(--rcb-muted); font-size: 16px; }
+  .rcb-note { background: var(--rcb-bg); padding: 16px; border-radius: 12px; font-size: 14px; color: var(--rcb-text); }
+
+  .rcb-cta-row { display:flex; gap:12px; flex-wrap:wrap; margin: 16px 0 0; }
+  .rcb-btn { appearance: none; border: 0; background: var(--rcb-primary); color: #fff; padding: 12px 16px; border-radius: 12px; font-weight: 700; cursor: pointer; box-shadow: 0 4px 10px rgba(1, 77, 78, .15); }
+  .rcb-btn.secondary { background: #fff; color: var(--rcb-primary); border: 2px solid var(--rcb-primary); }
+  .rcb-btn.linklike { background: transparent; color: var(--rcb-primary); padding: 0; box-shadow: none; text-decoration: underline; }
+
+  .rcb-section-title { font-size: 20px; color: var(--rcb-primary); margin: 24px 0 8px; font-weight: 800; }
+  .rcb-fieldset { border: 1px solid #e5e7eb; border-radius: 14px; padding: 12px; margin: 12px 0 18px; }
+  .rcb-legend { font-weight: 800; color: var(--rcb-text); padding: 0 6px; }
+
+  .rcb-item { padding: 14px 10px; border-top: 1px dashed #e5e7eb; display:grid; grid-template-columns: 1fr auto; align-items:center; gap: 16px; }
+  .rcb-item:first-of-type { border-top: 0; }
+  .rcb-label { font-size: 15px; }
+
+  /* 1–5 rating group styled as selectable chips */
+  .rcb-rating { display:grid; grid-template-columns: repeat(5, minmax(40px, 1fr)); gap:8px; }
+  .rcb-rating input { position: absolute; opacity: 0; pointer-events: none; }
+  .rcb-chip { display:flex; align-items:center; justify-content:center; border: 2px solid #e5e7eb; padding: 10px 0; border-radius: 10px; cursor: pointer; font-weight: 700; user-select:none; min-width: 42px; }
+  .rcb-chip[data-val="1"]::after { content: "1"; }
+  .rcb-chip[data-val="2"]::after { content: "2"; }
+  .rcb-chip[data-val="3"]::after { content: "3"; }
+  .rcb-chip[data-val="4"]::after { content: "4"; }
+  .rcb-chip[data-val="5"]::after { content: "5"; }
+
+  .rcb-rating input:focus + .rcb-chip { outline: 3px solid rgba(0,168,168,.35); outline-offset: 2px; }
+  .rcb-rating input:checked + .rcb-chip { background: var(--rcb-primary); border-color: var(--rcb-primary); color: #fff; box-shadow: 0 2px 8px rgba(1,77,78,.25); }
+
+  .rcb-scale-hint { color: var(--rcb-muted); font-size: 13px; margin-top: 6px; }
+
+  .rcb-actions { display:flex; gap:12px; flex-wrap:wrap; margin-top: 8px; }
+  .rcb-actions .rcb-btn[disabled] { opacity: .6; cursor: not-allowed; }
+
+  /* Results */
+  .rcb-results { margin-top: 24px; display:none; }
+  .rcb-grid { display:grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  @media (max-width: 900px) { .rcb-grid { grid-template-columns: 1fr; } }
+  .rcb-card { border: 1px solid #e5e7eb; border-radius: 14px; padding: 16px; background: #fff; }
+  .rcb-card h3 { margin: 0 0 6px; font-size: 18px; color: var(--rcb-text); }
+  .rcb-score { display:flex; align-items:center; gap:8px; color: var(--rcb-muted); font-size: 14px; }
+  .rcb-dot { width: 10px; height: 10px; border-radius: 50%; display:inline-block; }
+  .rcb-dot.red { background: var(--rcb-red); }
+  .rcb-dot.yellow { background: var(--rcb-yellow); }
+  .rcb-dot.green { background: var(--rcb-green); }
+  .rcb-headline { margin: 6px 0; font-weight: 800; }
+  .rcb-desc { color: var(--rcb-text); font-size: 14px; }
+
+  .rcb-ctas { margin-top: 22px; display:flex; gap:12px; flex-wrap:wrap; }
+
+  /* Feedback modal */
+  .rcb-modal-backdrop { position: fixed; inset: 0; background: rgba(17,24,39,.45); display:none; align-items:center; justify-content:center; z-index: 9999; }
+  .rcb-modal { background: #fff; width: min(680px, 92vw); border-radius: 16px; box-shadow: var(--rcb-shadow); padding: 18px; }
+  .rcb-modal h3 { margin: 0 0 4px; color: var(--rcb-primary); }
+  .rcb-nps { display:flex; gap:6px; flex-wrap:wrap; justify-content:space-between; }
+  .rcb-nps input { position:absolute; opacity:0; }
+  .rcb-nps label { border: 2px solid #e5e7eb; border-radius: 10px; padding:10px 0; width: 100%; max-width: 44px; text-align:center; cursor:pointer; font-weight: 700; }
+  .rcb-nps input:checked + label { background: var(--rcb-primary); color: #fff; border-color: var(--rcb-primary); }
+  .rcb-textarea { width: 100%; min-height: 110px; border:1px solid #e5e7eb; border-radius: 10px; padding: 10px; font: inherit; }
+  .rcb-modal-actions { display:flex; gap:10px; justify-content:flex-end; margin-top: 10px; }
+  .rcb-muted { color: var(--rcb-muted); font-size: 13px; }
+</style>
+
+<script>
+(function(){
+  const FEEDBACK_ENDPOINT = 'https://hook.YOUR-MAKE-SCENARIO-ID.make.com/your-webhook'; // ← replace or set to '/api/feedback'
+
+  const i18n = {
+    kicker: 'braveanalyse. Weil Klarheit der Anfang jeder Entwicklung ist.',
+    title: 'Reifegrad-Check™ BASIS: Standortanalyse für Wandel, Führung & Zusammenarbeit',
+    lead: 'Der digitale Reifegrad-Check™ ist ein praxisnahes Tool für moderne Organisationsentwicklung. Er zeigt Dir in wenigen Minuten, wie zukunftsfähig Deine Organisation aufgestellt ist. Du bewertest 12 wissenschaftlich fundierte Aussagen auf einer Skala von 1 bis 5. Direkt danach erhältst Du eine kompakte Auswertung mit Ampel-Logik: anonym, praxisnah und mit Aha-Effekt. Deine ehrliche Einschätzung zeigt, wo Blockaden bestehen und welche Potenziale ihr nutzen könnt.',
+    note: 'Hinweis zur Teilnahme: Der Reifegrad-Check™ BASIS ist vollständig anonym. Es werden keine IP-Adressen gespeichert. Antworten werden ausschließlich für die unmittelbare Auswertung genutzt.',
+    fbInvite: 'Feedback-Einladung: Im Anschluss kannst Du auf Wunsch anonym Rückmeldung geben und so dazu beitragen, dass der Reifegrad-Check™ BASIS für Dich und andere noch hilfreicher wird. Vielen Dank!'
+  };
+
+  const AREAS = [
+    {
+      key: 'wandel',
+      title: 'Wandel',
+      items: [
+        'Die Zukunftsvision ist klar formuliert, wird regelmäßig geteilt und aktiv gelebt.',
+        'Die dauerhafte Kompetenz, sich auf neue Bedingungen einzustellen, ist in Haltung und Handeln fest verankert.',
+        'Wir gestalten Innovationsprozesse durch die Förderung von Kreativität, schnellem Ausprobieren und strukturierter Umsetzung.',
+        'Wir bewahren unsere Werte und eine gemeinsame Identität, besonders in herausfordernden Phasen.'
+      ],
+      eval: function(points){
+        if(points <= 9) return { color:'red', label:'🔴 Rot', headline:'Kritischer Bereich; hoher Handlungsbedarf', desc:'Wandel wirkt eher reaktiv. Strategische Orientierung, kulturelle Verankerung oder Innovationskraft sind vermutlich noch wenig ausgeprägt.' };
+        if(points <= 14) return { color:'yellow', label:'🟡 Gelb', headline:'Potenziale da, aber noch nicht konsistent', desc:'Wandel wird unterschiedlich erlebt. Vision, Strukturen und Offenheit für Neues sind erkennbar, aber noch nicht stabil.' };
+        return { color:'green', label:'🟢 Grün', headline:'Stark ausgeprägt, sollte als Ressource genutzt werden', desc:'Wandel scheint aktiv gestaltet zu werden. Zukunftsbild, Haltung und Veränderungsprozesse greifen erkennbar ineinander und fördern Anpassungsfähigkeit.' };
+      }
+    },
+    {
+      key: 'fuehrung',
+      title: 'Führung',
+      items: [
+        'Führungskräfte hören aktiv zu und beziehen unterschiedliche Perspektiven in Entscheidungen ein.',
+        'Feedback wird regelmäßig, klar strukturiert und konstruktiv sowohl von Führungskräften als auch von Mitarbeitenden gegeben.',
+        'Führungskräfte schaffen ein Umfeld, in dem Vorbehalte oder Kritik offen geäußert und konstruktiv besprochen werden.',
+        'Führung inspiriert durch Vorbild, klare Sinnvermittlung und erkennbaren Nutzen für das gemeinsame Ziel.'
+      ],
+      eval: function(points){
+        if(points <= 9) return { color:'red', label:'🔴 Rot', headline:'Kritischer Bereich; hoher Handlungsbedarf', desc:'Führung erscheint stärker durch konventionelle Vorgaben geprägt. Orientierung, Dialog und Sinnvermittlung scheinen nur begrenzt erkennbar.' };
+        if(points <= 14) return { color:'yellow', label:'🟡 Gelb', headline:'Potenziale da, aber noch nicht konsistent', desc:'Führung wird unterschiedlich erlebt. Zuhören, Feedback und Vorbildwirkung sind punktuell erkennbar, jedoch noch nicht konsistent gelebt.' };
+        return { color:'green', label:'🟢 Grün', headline:'Stark ausgeprägt, sollte als Ressource genutzt werden', desc:'Führung erscheint unterstützend. Kommunikation, Sinnvermittlung und Begleitung tragen spürbar zu Vertrauen und Entwicklung bei.' };
+      }
+    },
+    {
+      key: 'zusammenarbeit',
+      title: 'Zusammenarbeit',
+      items: [
+        'Teams arbeiten bereichsübergreifend zusammen, um gemeinsame Ziele zu erreichen.',
+        'Unterschiedliche Sichtweisen werden genutzt, um Neues auszuprobieren und bessere Lösungen zu entwickeln.',
+        'Informationen werden offen, unternehmensweit und adressatengerecht geteilt.',
+        'Zusammenarbeit orientiert sich am Nutzen für ihre Empfänger:innen und nicht am Selbstzweck.'
+      ],
+      eval: function(points){
+        if(points <= 9) return { color:'red', label:'🔴 Rot', headline:'Kritischer Bereich; hoher Handlungsbedarf', desc:'Zusammenarbeit wirkt wenig abgestimmt. Nutzerorientierung, Rollenklärung und gemeinsames Lernen scheinen noch wenig etabliert.' };
+        if(points <= 14) return { color:'yellow', label:'🟡 Gelb', headline:'Potenziale da, aber noch nicht konsistent', desc:'Bereichsübergreifender Austausch, Nutzerbezug und Reflexion sind vorhanden, aber noch nicht verlässlich.' };
+        return { color:'green', label:'🟢 Grün', headline:'Stark ausgeprägt, sollte als Ressource genutzt werden', desc:'Zusammenarbeit erscheint verbindlich und entwicklungsorientiert. Teams stimmen sich abteilungsübergreifend ab, beziehen die Nutzerperspektive ein und lernen kontinuierlich voneinander.' };
+      }
+    }
+  ];
+
+  function h(tag, attrs, children){
+    const el = document.createElement(tag);
+    if(attrs){ for(const [k,v] of Object.entries(attrs)){
+      if(k === 'class') el.className = v; else if(k === 'html') el.innerHTML = v; else el.setAttribute(k,v);
+    }}
+    if(children){ children.forEach(c => el.appendChild(typeof c === 'string' ? document.createTextNode(c) : c)); }
+    return el;
+  }
+
+  function build(){
+    const root = document.getElementById('rcb-root');
+    const c = h('div', { class:'rcb-container', role:'region', 'aria-label':'Reifegrad-Check BASIS' });
+
+    // Intro
+    c.appendChild(h('div', { class:'rcb-kicker' }, [i18n.kicker]));
+    c.appendChild(h('h1', { class:'rcb-h1' }, [i18n.title]));
+    c.appendChild(h('p', { class:'rcb-lead' }, [i18n.lead]));
+    const note = h('div', { class:'rcb-note' }, [i18n.note + ' ', h('br'), i18n.fbInvite]);
+    c.appendChild(note);
+
+
+    // Form
+    c.appendChild(h('div', { class:'rcb-section-title', id:'rcb-form-start' }, ['Bewertung: 12 Aussagen (1–5)']));
+
+    const form = h('form', { id:'rcb-form' });
+
+    AREAS.forEach(area => {
+      const fs = h('fieldset', { class:'rcb-fieldset' });
+      fs.appendChild(h('legend', { class:'rcb-legend' }, [area.title]));
+
+      area.items.forEach((text, idx) => {
+        const row = h('div', { class:'rcb-item' });
+        row.appendChild(h('div', { class:'rcb-label' }, [text]));
+
+        const group = h('div', { class:'rcb-rating', role:'radiogroup', 'aria-label':`${area.title} Aussage ${idx+1}` });
+        for(let v=1; v<=5; v++){
+          const id = `rcb-${area.key}-${idx}-${v}`;
+          const input = h('input', { type:'radio', name:`${area.key}-${idx}`, id, value:String(v), required:'required', 'data-area': area.key });
+          const lab = h('label', { for:id, class:'rcb-chip', 'data-val': String(v), title: String(v) });
+          group.appendChild(input); group.appendChild(lab);
+        }
+        row.appendChild(group);
+        fs.appendChild(row);
+      });
+
+      fs.appendChild(h('div', { class:'rcb-scale-hint' }, ['Skala: 1 = trifft gar nicht zu · 5 = trifft voll zu']));
+      form.appendChild(fs);
+    });
+
+    const actions = h('div', { class:'rcb-actions' });
+    const calcBtn = h('button', { class:'rcb-btn', id:'rcb-calc', type:'button', disabled:'disabled' }, ['Ergebnisse anzeigen']);
+    const resetBtn = h('button', { class:'rcb-btn secondary', id:'rcb-reset', type:'button' }, ['Zurücksetzen']);
+    actions.appendChild(calcBtn); actions.appendChild(resetBtn);
+    form.appendChild(actions);
+
+    c.appendChild(form);
+
+    // Results area
+    const results = h('section', { class:'rcb-results', id:'rcb-results', 'aria-live':'polite' });
+    results.appendChild(h('div', { class:'rcb-section-title' }, ['Auswertung (Ampel-Logik)']));
+    const grid = h('div', { class:'rcb-grid', id:'rcb-grid' });
+    results.appendChild(grid);
+
+    const ctas = h('div', { class:'rcb-ctas' });
+    const pro = h('a', { class:'rcb-btn', href:'#', target:'_blank', rel:'noopener' }, ['Jetzt gemeinsam Potenziale nutzen (PRO)']);
+    const premium = h('a', { class:'rcb-btn secondary', href:'#', target:'_blank', rel:'noopener' }, ['PREMIUM ansehen']);
+    const feedback = h('button', { class:'rcb-btn linklike', type:'button', id:'rcb-open-feedback-2' }, ['Feedback geben']);
+    ctas.appendChild(pro); ctas.appendChild(premium); ctas.appendChild(feedback);
+
+    results.appendChild(ctas);
+    c.appendChild(results);
+
+    // Feedback modal
+    const modalWrap = h('div', { class:'rcb-modal-backdrop', id:'rcb-modal' });
+    const modal = h('div', { class:'rcb-modal' });
+    modal.appendChild(h('h3', {}, ['Dein anonymes Feedback']));
+    modal.appendChild(h('p', { class:'rcb-muted' }, ['Wie wahrscheinlich ist es, dass Du den Reifegrad-Check™ BASIS weiterempfehlen würdest? 0 (überhaupt nicht) – 10 (auf jeden Fall)']));
+
+    const npsGroup = h('div', { class:'rcb-nps', id:'rcb-nps' });
+    for(let n=0; n<=10; n++){
+      const id = `rcb-nps-${n}`;
+      const input = h('input', { type:'radio', name:'rcb-nps', id, value:String(n), required:'required' });
+      const label = h('label', { for:id }, [String(n)]);
+      npsGroup.appendChild(input); npsGroup.appendChild(label);
+    }
+    modal.appendChild(npsGroup);
+
+    modal.appendChild(h('div', { style:'height:8px' }));
+    modal.appendChild(h('label', { for:'rcb-fb' }, ['Was war besonders hilfreich oder was könnte besser sein? (optional)']));
+    const ta = h('textarea', { id:'rcb-fb', class:'rcb-textarea', placeholder:'Dein Feedback …' });
+    modal.appendChild(ta);
+    modal.appendChild(h('p', { class:'rcb-muted' }, ['Wir speichern keine IP-Adresse. Es werden nur Deine Auswahl (NPS), Dein Freitext (optional) und ein Zeitstempel übertragen.']));
+
+    const mActions = h('div', { class:'rcb-modal-actions' });
+    const cancel = h('button', { class:'rcb-btn secondary', type:'button', id:'rcb-cancel-fb' }, ['Abbrechen']);
+    const submit = h('button', { class:'rcb-btn', type:'button', id:'rcb-send-fb' }, ['Anonym senden']);
+    mActions.appendChild(cancel); mActions.appendChild(submit);
+    modal.appendChild(mActions);
+
+    modalWrap.appendChild(modal);
+
+    document.getElementById('rcb-root').appendChild(c);
+    document.body.appendChild(modalWrap);
+
+    // Interactions
+   const open2 = document.getElementById('rcb-open-feedback-2');
+   const backdrop = document.getElementById('rcb-modal');
+   if (open2) {
+   open2.addEventListener('click', ()=>{ backdrop.style.display = 'flex'; });
+   }
+   document.getElementById('rcb-cancel-fb').addEventListener('click', ()=>{ backdrop.style.display = 'none'; });
+
+    // Enable calculate when all 12 answered
+    const calc = document.getElementById('rcb-calc');
+    const reset = document.getElementById('rcb-reset');
+    const formEl = document.getElementById('rcb-form');
+
+    formEl.addEventListener('change', () => {
+      const answered = formEl.querySelectorAll('input[type="radio"]:checked').length;
+      calc.disabled = answered < 12; // 3 areas * 4 items = 12
+    });
+
+    reset.addEventListener('click', () => {
+      formEl.reset(); calc.disabled = true; document.getElementById('rcb-results').style.display = 'none';
+      // Clear NPS in modal too
+      document.querySelectorAll('#rcb-nps input[type="radio"]').forEach(i=> i.checked = false);
+      document.getElementById('rcb-fb').value = '';
+    });
+
+    calc.addEventListener('click', () => {
+      const sums = { wandel:0, fuehrung:0, zusammenarbeit:0 };
+      AREAS.forEach(area => {
+        for(let i=0;i<4;i++){
+          const sel = formEl.querySelector(`input[name="${area.key}-${i}"]:checked`);
+          sums[area.key] += sel ? Number(sel.value) : 0;
+        }
+      });
+
+      const grid = document.getElementById('rcb-grid');
+      grid.innerHTML = '';
+      AREAS.forEach(area => {
+        const points = sums[area.key];
+        const ev = area.eval(points);
+        const card = h('div', { class:'rcb-card' });
+        card.appendChild(h('h3', {}, [`${area.title}: ${points} Punkte`]));
+        const score = h('div', { class:'rcb-score' });
+        score.appendChild(h('span', { class:`rcb-dot ${ev.color}` }));
+        score.appendChild(h('span', {}, [ev.label]));
+        card.appendChild(score);
+        card.appendChild(h('div', { class:'rcb-headline' }, [ev.headline]));
+        card.appendChild(h('div', { class:'rcb-desc' }, [ev.desc]));
+        grid.appendChild(card);
+      });
+
+      document.getElementById('rcb-results').style.display = 'block';
+      document.getElementById('rcb-results').scrollIntoView({ behavior:'smooth', block:'start' });
+    });
+
+    // Feedback submit
+    document.getElementById('rcb-send-fb').addEventListener('click', async () => {
+      const npsSel = document.querySelector('#rcb-nps input[type="radio"]:checked');
+      if(!npsSel){ alert('Bitte wähle zuerst eine Zahl (0–10).'); return; }
+      const payload = {
+        nps: Number(npsSel.value),
+        comment: document.getElementById('rcb-fb').value || null,
+        ts: new Date().toISOString(),
+        page: location.href,
+        ua: navigator.userAgent,
+        uuid: (self.crypto && crypto.randomUUID) ? crypto.randomUUID() : Math.random().toString(36).slice(2)
+      };
+
+      try {
+        // If your endpoint supports CORS, you can remove mode:'no-cors' and handle the actual response.
+        await fetch(FEEDBACK_ENDPOINT, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+          mode: 'no-cors'
+        });
+        alert('Danke! Dein anonymes Feedback wurde gesendet.');
+        document.getElementById('rcb-modal').style.display = 'none';
+        // reset feedback form
+        document.querySelectorAll('#rcb-nps input[type="radio"]').forEach(i=> i.checked = false);
+        document.getElementById('rcb-fb').value = '';
+      } catch (e){
+        console.error(e);
+        alert('Uups – Senden nicht möglich. Bitte später erneut versuchen.');
+      }
+    });
+  }
+
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', build); else build();
+})();
+</script>
+
+<!-- ——————————————————————————————————————————————————————————————
+OPTIONAL: Vercel/Netlify Serverless Endpoint (TypeScript) to receive feedback,
+forward to Make/Google Sheets, and email bravework via Resend.
+Place this file at /api/feedback.ts in a Next.js (Vercel) project or adapt for Netlify.
+Set FEEDBACK_ENDPOINT in the widget above to '/api/feedback'.
+
+// /api/feedback.ts
+import type { NextRequest } from 'next/server';
+import { Resend } from 'resend';
+
+export const config = { runtime: 'edge' };
+
+const RESEND_API_KEY = process.env.RESEND_API_KEY!;           // add in Vercel dashboard
+const FORWARD_TO = 'feedback@bravework.example';              // replace
+const MAKE_WEBHOOK = process.env.MAKE_WEBHOOK_URL;            // optional, to store in Google Sheet via Make
+
+export default async function handler(req: NextRequest){
+  if(req.method !== 'POST') return new Response('Method not allowed', { status: 405 });
+  const resend = new Resend(RESEND_API_KEY);
+  try {
+    const { nps, comment, ts, page, ua, uuid } = await req.json();
+
+    // 1) Forward to Make (optional – where you can append to Google Sheets)
+    if(MAKE_WEBHOOK){
+      await fetch(MAKE_WEBHOOK, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ nps, comment, ts, page, ua, uuid }) });
+    }
+
+    // 2) Email notification via Resend
+    await resend.emails.send({
+      from: 'noreply@yourdomain.tld',
+      to: FORWARD_TO,
+      subject: `Neues anonymes Feedback (NPS: ${nps})`,
+      html: `<p><strong>NPS:</strong> ${nps}</p>
+             <p><strong>Kommentar:</strong> ${comment ? String(comment).replace(/</g,'&lt;') : '—'}</p>
+             <p><strong>Zeitstempel:</strong> ${ts}</p>
+             <p><strong>Seite:</strong> ${page}</p>
+             <p><strong>UUID:</strong> ${uuid}</p>`
+    });
+
+    return new Response(JSON.stringify({ ok:true }), { status: 200, headers:{'Content-Type':'application/json'} });
+  } catch (e){
+    return new Response(JSON.stringify({ ok:false, error: String(e) }), { status: 400, headers:{'Content-Type':'application/json'} });
+  }
+}
+
+// SECURITY & PRIVACY
+// - Do NOT log IPs; do not store request headers. Keep payload minimal.
+// - Consider adding a simple rate limit or bot check if the endpoint becomes public.
+// —————————————————————————————————————————————————————————————— -->
