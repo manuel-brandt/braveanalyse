@@ -1,17 +1,8 @@
-<!--
-  Reifegrad-Check™ BASIS – Drop‑In Widget (Vanilla HTML/CSS/JS)
-  Usage: Paste this whole block into your site (e.g., WordPress/Elementor HTML widget or any page).
-  Notes:
-  - No assessment answers are sent anywhere. All scoring runs in the browser.
-  - Only the optional feedback (NPS + free text) is posted anonymously to FEEDBACK_ENDPOINT.
-  - Replace FEEDBACK_ENDPOINT with your Make.com webhook or your own serverless endpoint.
-  - Adjust brand colours via CSS variables under :root.
--->
 <div id="rcb-root"></div>
 <style>
   :root {
     /* === Brand/CI colours (adjust to bravework CI) === */
-    --rcb-primary: #014D4E;  /* headings, buttons */
+    --rcb-primary: #00035B;  /* headings, buttons */
     --rcb-accent: #00A8A8;   /* highlights, focus */
     --rcb-bg: #F6F8F9;       /* soft background */
     --rcb-text: #1A1F36;     /* default text */
@@ -25,11 +16,17 @@
     /* UI tokens */
     --rcb-radius: 14px;
     --rcb-shadow: 0 8px 24px rgba(16, 24, 40, 0.08);
+    
   }
 
+/* Fix hover state for primary button */
+.rcb-btn:hover:not(.secondary):not(.linklike) {
+  background: #00058A; /* slightly lighter than #00035B */
+  color: #fff;         /* keep text white */
+  transition: 0.2s ease-in-out;
+}
   .rcb-container {
     box-sizing: border-box;
-    max-width: 980px;
     margin: 40px auto;
     padding: 24px;
     background: #fff;
@@ -38,8 +35,8 @@
     color: var(--rcb-text);
     font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
   }
-  .rcb-kicker { color: var(--rcb-accent); letter-spacing: .06em; text-transform: uppercase; font-weight: 700; font-size: 12px; }
-  .rcb-h1 { margin: 6px 0 8px; font-size: 28px; line-height: 1.25; color: var(--rcb-primary); font-weight: 800; }
+  .rcb-kicker { color: var(--rcb-accent); letter-spacing: .06em; text-transform: uppercase; font-weight: 700; font-size: 0px; }
+  .rcb-h1 { margin: 6px 0 8px; font-size: 0px!important; line-height: 1.25; color: var(--rcb-primary); font-weight: 800; }
   .rcb-lead { color: var(--rcb-muted); font-size: 16px; }
   .rcb-note { background: var(--rcb-bg); padding: 16px; border-radius: 12px; font-size: 14px; color: var(--rcb-text); }
 
@@ -108,7 +105,7 @@
   const FEEDBACK_ENDPOINT = 'https://hook.YOUR-MAKE-SCENARIO-ID.make.com/your-webhook'; // ← replace or set to '/api/feedback'
 
   const i18n = {
-    kicker: 'braveanalyse. Weil Klarheit der Anfang jeder Entwicklung ist.',
+    kicker: 'braveanalyse. ',
     title: 'Reifegrad-Check™ BASIS: Standortanalyse für Wandel, Führung & Zusammenarbeit',
     lead: 'Der digitale Reifegrad-Check™ ist ein praxisnahes Tool für moderne Organisationsentwicklung. Er zeigt Dir in wenigen Minuten, wie zukunftsfähig Deine Organisation aufgestellt ist. Du bewertest 12 wissenschaftlich fundierte Aussagen auf einer Skala von 1 bis 5. Direkt danach erhältst Du eine kompakte Auswertung mit Ampel-Logik: anonym, praxisnah und mit Aha-Effekt. Deine ehrliche Einschätzung zeigt, wo Blockaden bestehen und welche Potenziale ihr nutzen könnt.',
     note: 'Hinweis zur Teilnahme: Der Reifegrad-Check™ BASIS ist vollständig anonym. Es werden keine IP-Adressen gespeichert. Antworten werden ausschließlich für die unmittelbare Auswertung genutzt.',
@@ -227,10 +224,19 @@
     results.appendChild(grid);
 
     const ctas = h('div', { class:'rcb-ctas' });
-    const pro = h('a', { class:'rcb-btn', href:'#', target:'_blank', rel:'noopener' }, ['Jetzt gemeinsam Potenziale nutzen (PRO)']);
-    const premium = h('a', { class:'rcb-btn secondary', href:'#', target:'_blank', rel:'noopener' }, ['PREMIUM ansehen']);
-    const feedback = h('button', { class:'rcb-btn linklike', type:'button', id:'rcb-open-feedback-2' }, ['Feedback geben']);
-    ctas.appendChild(pro); ctas.appendChild(premium); ctas.appendChild(feedback);
+    const pro = h('a', {
+  class: 'rcb-btn',
+  href: 'https://bravework.org/braveanalyse/',
+  target: '_blank',
+  rel: 'noopener'
+}, ['Jetzt gemeinsam Potenziale finden']);
+    const feedback = h('a', {
+  class: 'rcb-btn linklike',
+  href: '/reifegrad-feedback/',
+  target: '_blank',
+  rel: 'noopener'
+}, ['Feedback geben']);
+    ctas.appendChild(pro); ctas.appendChild(feedback);
 
     results.appendChild(ctas);
     c.appendChild(results);
@@ -309,7 +315,6 @@
         const card = h('div', { class:'rcb-card' });
         card.appendChild(h('h3', {}, [`${area.title}: ${points} Punkte`]));
         const score = h('div', { class:'rcb-score' });
-        score.appendChild(h('span', { class:`rcb-dot ${ev.color}` }));
         score.appendChild(h('span', {}, [ev.label]));
         card.appendChild(score);
         card.appendChild(h('div', { class:'rcb-headline' }, [ev.headline]));
@@ -357,53 +362,3 @@
   if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', build); else build();
 })();
 </script>
-
-<!-- ——————————————————————————————————————————————————————————————
-OPTIONAL: Vercel/Netlify Serverless Endpoint (TypeScript) to receive feedback,
-forward to Make/Google Sheets, and email bravework via Resend.
-Place this file at /api/feedback.ts in a Next.js (Vercel) project or adapt for Netlify.
-Set FEEDBACK_ENDPOINT in the widget above to '/api/feedback'.
-
-// /api/feedback.ts
-import type { NextRequest } from 'next/server';
-import { Resend } from 'resend';
-
-export const config = { runtime: 'edge' };
-
-const RESEND_API_KEY = process.env.RESEND_API_KEY!;           // add in Vercel dashboard
-const FORWARD_TO = 'feedback@bravework.example';              // replace
-const MAKE_WEBHOOK = process.env.MAKE_WEBHOOK_URL;            // optional, to store in Google Sheet via Make
-
-export default async function handler(req: NextRequest){
-  if(req.method !== 'POST') return new Response('Method not allowed', { status: 405 });
-  const resend = new Resend(RESEND_API_KEY);
-  try {
-    const { nps, comment, ts, page, ua, uuid } = await req.json();
-
-    // 1) Forward to Make (optional – where you can append to Google Sheets)
-    if(MAKE_WEBHOOK){
-      await fetch(MAKE_WEBHOOK, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ nps, comment, ts, page, ua, uuid }) });
-    }
-
-    // 2) Email notification via Resend
-    await resend.emails.send({
-      from: 'noreply@yourdomain.tld',
-      to: FORWARD_TO,
-      subject: `Neues anonymes Feedback (NPS: ${nps})`,
-      html: `<p><strong>NPS:</strong> ${nps}</p>
-             <p><strong>Kommentar:</strong> ${comment ? String(comment).replace(/</g,'&lt;') : '—'}</p>
-             <p><strong>Zeitstempel:</strong> ${ts}</p>
-             <p><strong>Seite:</strong> ${page}</p>
-             <p><strong>UUID:</strong> ${uuid}</p>`
-    });
-
-    return new Response(JSON.stringify({ ok:true }), { status: 200, headers:{'Content-Type':'application/json'} });
-  } catch (e){
-    return new Response(JSON.stringify({ ok:false, error: String(e) }), { status: 400, headers:{'Content-Type':'application/json'} });
-  }
-}
-
-// SECURITY & PRIVACY
-// - Do NOT log IPs; do not store request headers. Keep payload minimal.
-// - Consider adding a simple rate limit or bot check if the endpoint becomes public.
-// —————————————————————————————————————————————————————————————— -->
